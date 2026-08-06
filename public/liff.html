@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตรวจสอบข้อมูลเคส - Cath Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- LIFF SDK -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-neutral-900 text-neutral-200 min-h-screen pb-20">
+    <header class="bg-neutral-800 text-white p-4 shadow-md sticky top-0 z-10 flex justify-between items-center border-b border-neutral-700">
+        <div>
+            <h1 class="text-xl font-bold text-green-500">ยืนยันข้อมูลเคส</h1>
+            <p class="text-sm text-green-400 opacity-80" id="header-status">กำลังโหลดข้อมูล...</p>
+        </div>
+        <div id="profile-img" class="w-10 h-10 rounded-full bg-blue-400 overflow-hidden hidden"></div>
+    </header>
+
+    <main class="p-4" id="app-container">
+        <!-- Loading State -->
+        <div id="loading-state" class="flex justify-center items-center h-40">
+            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+        </div>
+
+        <!-- Cases will be injected here dynamically -->
+        <div id="cases-container" class="space-y-6 hidden"></div>
+    </main>
+
+    <!-- Fixed Bottom Bar for Global Submit (if needed) -->
+    <div class="fixed bottom-0 left-0 right-0 bg-neutral-800 border-t border-neutral-700 p-4 shadow-[0_-2px_10px_rgba(0,0,0,0.3)] hidden" id="bottom-bar">
+        <button id="btn-submit-all" class="w-full bg-green-700 hover:bg-green-800 text-white font-bold py-3 px-4 rounded-lg shadow disabled:opacity-50 transition-colors">
+            บันทึกข้อมูลทั้งหมดเข้า Sheet
+        </button>
+    </div>
+
+    <!-- Case Template (Hidden) -->
+    <template id="case-template">
+        <div class="bg-neutral-800 rounded-xl shadow-md overflow-hidden border border-neutral-700 case-card" data-index="">
+            <div class="bg-neutral-700 px-4 py-3 border-b border-neutral-600 flex justify-between items-center">
+                <h3 class="font-bold text-green-600 case-header-title">เคสที่ X — Name</h3>
+                <span class="text-xs bg-neutral-800 px-2 py-1 rounded border border-green-700 text-green-600 font-mono case-ccn">CCN</span>
+            </div>
+            
+            <details class="border-b border-neutral-700 group" open>
+                <summary class="p-4 cursor-pointer select-none flex items-center justify-between text-sm font-semibold text-neutral-400 uppercase tracking-wider hover:text-neutral-200">
+                    <span>ข้อมูลทั่วไป (ตรวจสอบและแก้ไข)</span>
+                    <span class="text-neutral-500 transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <form class="general-form grid grid-cols-2 gap-3 text-sm px-4 pb-4">
+                    <!-- Dynamic inputs injected by JS: Name, CCN, HN, AN, Date -->
+                </form>
+            </details>
+
+            <details class="border-b border-neutral-700 group">
+                <summary class="p-4 cursor-pointer select-none flex items-center justify-between text-sm font-semibold text-neutral-400 uppercase tracking-wider hover:text-neutral-200">
+                    <span>ทีมปฏิบัติงาน (Staff)</span>
+                    <span class="text-neutral-500 transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <form class="staff-form grid grid-cols-2 gap-3 text-sm px-4 pb-4">
+                    <!-- Dynamic inputs injected by JS: Doctor, Scrub, Circulate, Monitor -->
+                </form>
+            </details>
+
+            <details class="border-b border-neutral-700 group">
+                <summary class="p-4 cursor-pointer select-none flex items-center justify-between text-sm font-semibold text-neutral-400 uppercase tracking-wider hover:text-neutral-200">
+                    <span>รายละเอียดการรักษา (Clinical Details)</span>
+                    <span class="text-neutral-500 transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <form class="treatment-form grid grid-cols-1 gap-3 text-sm px-4 pb-4">
+                    <!-- Dynamic inputs injected by JS: Indication, Procedure, Result, Puncture site, Complication, Recommendation -->
+                </form>
+            </details>
+
+            <div class="p-4">
+                <h4 class="text-sm font-semibold text-neutral-400 mb-3 uppercase tracking-wider">อุปกรณ์ที่ใช้ (Equipment)</h4>
+                <form class="equipment-form grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Dynamic inputs injected by JS -->
+                </form>
+            </div>
+            
+            <div class="bg-neutral-700 px-4 py-3 border-t border-neutral-600 flex justify-end">
+                <span class="text-sm font-medium text-green-400 hidden status-saved">✅ พร้อมบันทึก</span>
+            </div>
+        </div>
+    </template>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
