@@ -4,7 +4,11 @@
   "description": "ระบบรับภาพถ่ายหน้าสมุดจดบันทึกด้วยลายมือจากเจ้าหน้าที่เทคนิคการแพทย์ส่วนหัวใจผ่าน LINE OA เพื่อนำมาสกัดข้อความด้วยเทคโนโลยี OCR/HTR และใช้ BERT Language Model ตรวจสอบความถูกต้องก่อนบันทึกลง Google Sheet และจัดเตรียมข้อมูลในรูปแบบที่พร้อมสำหรับพิมพ์ส่งต่อให้แผนกบัญชี",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [],
   "author": "",
@@ -12,12 +16,11 @@
   "dependencies": {
     "@google-cloud/documentai": "^9.6.2",
     "@google-cloud/storage": "^7.21.0",
-    "@google-cloud/vision": "^5.3.7",
+    "@google-cloud/tasks": "^5.5.1",
     "@google/generative-ai": "^0.24.1",
     "@line/bot-sdk": "^11.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "googleapis": "^174.0.0",
-    "pdfmake": "^0.3.11"
+    "googleapis": "^174.0.0"
   }
 }

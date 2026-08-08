@@ -1,67 +1,61 @@
 const googleSheets = require('./googleSheets');
 
+const THAI_MONTHS = [
+  'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+  'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
+];
+
+// Thai month name + Buddhist Era year, e.g. "สิงหาคม 2569", matching the
+// convention used in the source notebook.
+function getCurrentThaiMonthYear() {
+  const now = new Date();
+  return `${THAI_MONTHS[now.getMonth()]} ${now.getFullYear() + 543}`;
+}
+
 class DashboardService {
   /**
-   * Retrieves summary data with stale cache validation.
-   * @param {'today' | 'this_month'} period 
+   * Retrieves the current month's summary with stale cache validation.
    */
-  async getSummary(period) {
-    const cache = await googleSheets.getSummaryCache(period);
-    
+  async getSummary() {
+    const cache = await googleSheets.getSummaryCache();
+
     if (!cache) {
       return this.getEmptySummary();
     }
 
-    const isStale = this.isCacheStale(cache.lastUpdated, period);
-
-    if (isStale) {
+    if (this.isCacheStale(cache.lastUpdated)) {
       return this.getEmptySummary();
     }
 
     return cache;
   }
 
-  isCacheStale(lastUpdatedIso, period) {
+  isCacheStale(lastUpdatedIso) {
     if (!lastUpdatedIso) return true;
-    
+
     const lastUpdated = new Date(lastUpdatedIso);
     const now = new Date();
 
-    if (period === 'today') {
-      // Validate Exact Date Match
-      return (
-        lastUpdated.getFullYear() !== now.getFullYear() ||
-        lastUpdated.getMonth() !== now.getMonth() ||
-        lastUpdated.getDate() !== now.getDate()
-      );
-    } else if (period === 'this_month') {
-      // Validate Month and Year Match Only
-      return (
-        lastUpdated.getFullYear() !== now.getFullYear() ||
-        lastUpdated.getMonth() !== now.getMonth()
-      );
-    }
-
-    return true;
+    return (
+      lastUpdated.getFullYear() !== now.getFullYear() ||
+      lastUpdated.getMonth() !== now.getMonth()
+    );
   }
 
   getEmptySummary() {
     return {
       lastUpdated: new Date().toISOString(),
       totalCases: 0,
-      complicationCount: 0,
-      avgTimeMins: 0,
-      topEquipments: [], // Empty state
+      cagCount: 0,
+      cagPciCount: 0,
+      topEquipments: [],
     };
   }
 
   /**
-   * Helper to format data into a LINE Flex Message Carousel
+   * Formats the current month's summary into a LINE Flex Message.
    */
-  generateFlexMessage(period, data) {
-    const periodText = period === 'today' ? 'วันนี้' : 'เดือนนี้';
-    
-    // Create equipment text
+  generateFlexMessage(data) {
     let eqText = 'ไม่มีข้อมูลการใช้อุปกรณ์';
     if (data.topEquipments && data.topEquipments.length > 0) {
       eqText = data.topEquipments.map((eq, i) => `${i + 1}. ${eq.name} (${eq.count})`).join('\\n');
@@ -69,7 +63,7 @@ class DashboardService {
 
     return {
       type: 'flex',
-      altText: `สรุปยอดเคส${periodText}: ${data.totalCases} เคส`,
+      altText: `สรุปยอดเคสเดือนนี้: ${data.totalCases} เคส`,
       contents: {
         type: 'carousel',
         contents: [
@@ -79,10 +73,10 @@ class DashboardService {
               type: 'box',
               layout: 'vertical',
               contents: [
-                { type: 'text', text: `สรุปยอดเคส${periodText}`, weight: 'bold', size: 'xl' },
+                { type: 'text', text: `สรุปยอดเคส ${getCurrentThaiMonthYear()}`, weight: 'bold', size: 'xl' },
                 { type: 'text', text: `จำนวนเคสทั้งหมด: ${data.totalCases}`, margin: 'md' },
-                { type: 'text', text: `มีภาวะแทรกซ้อน: ${data.complicationCount}` },
-                { type: 'text', text: `เวลาเฉลี่ย/เคส: ${data.avgTimeMins} นาที` },
+                { type: 'text', text: `CAG: ${data.cagCount} เคส` },
+                { type: 'text', text: `CAG+PCI: ${data.cagPciCount} เคส` },
               ]
             }
           },
