@@ -16,7 +16,7 @@ const PATIENT_RECORD_FIELDS = [
   'ptcaWire4302_New', 'ptcaWire4302_Re',
   'balloon4303_New',
   'stent4305_New',
-  'other_Raw', 'other_Parsed',
+  'other_Raw',
   'generator', 'lead',
 ];
 
@@ -27,7 +27,7 @@ const PATIENT_RECORD_HEADERS = [
   'Sheath(4701)', 'Guide wire(4711)_New', 'Guide wire(4711)_Re',
   'Dx.Cath(4407)_New', 'Dx.Cath(4407)_Re', 'Guiding(4301)_New', 'Guiding(4301)_Re',
   'PTCA wire(4302)_New', 'PTCA wire(4302)_Re', 'Balloon(4303)', 'Stent(4305)',
-  'Other(Raw)', 'Other(Parsed)', 'Generator', 'Lead'
+  'Other(Raw)', 'Generator', 'Lead'
 ];
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -111,6 +111,20 @@ function toContiguousRanges(indices) {
   return ranges;
 }
 
+// Converts a 0-indexed column index to its A1 column letter(s): 0=A, 1=B, ..., 25=Z, 26=AA, ...
+function columnIndexToLetter(index) {
+  let letter = '';
+  let n = index + 1;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
+const COLOR_OVERTIME_YELLOW = { red: 1, green: 0.92, blue: 0.23 };
+
 function buildRepeatCellColorRequest(sheetId, startRowIndex, endRowIndex, startColumnIndex, endColumnIndex, color) {
   return {
     repeatCell: {
@@ -174,7 +188,7 @@ class GoogleSheetsService {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: this.sheetId,
-      range: `${tabName}!A1:AK1`,
+      range: `${tabName}!A1:AJ1`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [PATIENT_RECORD_HEADERS] },
     });
@@ -225,6 +239,46 @@ class GoogleSheetsService {
     addHeaderOnly(greenIdx, COLOR_GREEN_HEADER);
     addHeaderAndData(tealIdx, COLOR_TEAL_HEADER, COLOR_TEAL_DATA);
     addHeaderAndData(pinkIdx, COLOR_PINK_HEADER, COLOR_PINK_DATA);
+
+    // Overtime highlight: if Time in falls outside 08:00-17:59, highlight both
+    // Time in and Time out yellow. Time out's own value is never checked.
+    const timeInIdx = PATIENT_RECORD_HEADERS.indexOf('Time in');
+    const timeOutIdx = PATIENT_RECORD_HEADERS.indexOf('Time out');
+    if (timeInIdx !== -1 && timeOutIdx !== -1) {
+      const timeInColumnLetter = columnIndexToLetter(timeInIdx);
+      requests.push({
+        addConditionalFormatRule: {
+          rule: {
+            ranges: [
+              {
+                sheetId,
+                startRowIndex: 1,
+                endRowIndex: DATA_ROWS_END_INDEX,
+                startColumnIndex: timeInIdx,
+                endColumnIndex: timeInIdx + 1,
+              },
+              {
+                sheetId,
+                startRowIndex: 1,
+                endRowIndex: DATA_ROWS_END_INDEX,
+                startColumnIndex: timeOutIdx,
+                endColumnIndex: timeOutIdx + 1,
+              },
+            ],
+            booleanRule: {
+              condition: {
+                type: 'CUSTOM_FORMULA',
+                values: [{
+                  userEnteredValue: `=AND($${timeInColumnLetter}2<>"", OR($${timeInColumnLetter}2>=TIME(18,0,0), $${timeInColumnLetter}2<TIME(8,0,0)))`,
+                }],
+              },
+              format: { backgroundColor: COLOR_OVERTIME_YELLOW },
+            },
+          },
+          index: 0,
+        },
+      });
+    }
 
     if (requests.length === 0) return;
 
@@ -281,7 +335,7 @@ class GoogleSheetsService {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: this.sheetId,
-      range: `${tabName}!A:AK`,
+      range: `${tabName}!A:AJ`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [row] },
     });
@@ -324,7 +378,7 @@ class GoogleSheetsService {
 
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: this.sheetId,
-      range: `${tabName}!A:AK`,
+      range: `${tabName}!A:AJ`,
     });
 
     const rows = res.data.values || [];

@@ -241,7 +241,6 @@ app.post('/api/submit-liff', express.json(), async (req, res) => {
             balloon4303_New: equipmentParser.parseInput(equipmentData.balloon4303, 'balloon4303').new,
             stent4305_New: equipmentParser.parseInput(equipmentData.stent4305, 'stent4305').new,
             other_Raw: equipmentData.other || '',
-            other_Parsed: JSON.stringify(equipmentParser.parseOther(equipmentData.other)),
             generator: equipmentData.generator || '',
             lead: equipmentData.lead || ''
         };
