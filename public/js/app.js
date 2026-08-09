@@ -1,10 +1,11 @@
 // ============ Field Definitions ============
 
-// Suggestion lists for datalists — populated from Google Sheet `Config_Master` via
-// GET /api/config-master (see loadConfigMaster()). Kept as `let` arrays and mutated
-// in place with .splice() so that GENERAL_FIELDS/STAFF_FIELDS below can hold a stable
-// reference to them and pick up the fetched values once loadConfigMaster() resolves,
-// even though those field definitions are declared before the fetch happens.
+// Suggestion lists for the custom suggestion dropdown (see createSuggestionDropdown)
+// — populated from Google Sheet `Config_Master` via GET /api/config-master (see
+// loadConfigMaster()). Kept as `let` arrays and mutated in place with .splice() so
+// that GENERAL_FIELDS/STAFF_FIELDS below can hold a stable reference to them and pick
+// up the fetched values once loadConfigMaster() resolves, even though those field
+// definitions are declared before the fetch happens.
 let DOCTOR_SUGGESTIONS = [];
 let SCRUB_SUGGESTIONS = [];
 let CIRCULATE_SUGGESTIONS = [];
@@ -23,23 +24,42 @@ const FALLBACK_SUGGESTIONS = {
     payments: ['UCEP', 'สปสช.', 'ประกันสังคม']
 };
 
-// Format validation for AI-extracted identifier fields. Mirrors the pattern used in
-// gemini.js remapData() (CCN: NN-NNNN, HN/AN: 8-digit) and the mask-token pattern in
-// gemini.js maskPHI() (ID Card: 13-digit). Kept as a lookup so the same rules can be
-// reused for the pre-submit block check without duplicating regex.
-// `required: false` (idCard only) means an empty value is allowed — not every case
-// has a legible ID card in the photo — while CCN/HN/AN stay mandatory as before.
+// Format validation for every non-Equipment field (General/Staff/Treatment). Mirrors
+// the pattern used in gemini.js remapData() (CCN: NN-NNNN, HN/AN: 8-digit) and the
+// mask-token pattern in gemini.js maskPHI() (ID Card: 13-digit) for the identifier
+// fields; the rest use a "must not be empty" pattern since there's no fixed format
+// to check beyond that. Kept as a single lookup so the same rules drive both the
+// per-field red-border feedback and the pre-submit block check without duplicating
+// regex. `required: false` (idCard only) means an empty value is allowed — not every
+// case has a legible ID card in the photo — every other field here is mandatory.
 const GENERAL_VALIDATION = {
     no: { pattern: /^\d+$/, message: "ลำดับที่ (No.) ต้องเป็นตัวเลขล้วน" },
     ccn: { pattern: /^\d{2}-\d{4}$/, message: "รูปแบบ CCN ไม่ถูกต้อง (เช่น 26-0001)" },
     hn: { pattern: /^\d{8}$/, message: "HN ต้องเป็นตัวเลข 8 หลัก" },
     an: { pattern: /^\d{8}$/, message: "AN ต้องเป็นตัวเลข 8 หลัก" },
-    idCard: { pattern: /^\d{13}$/, message: "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก", required: false }
+    idCard: { pattern: /^\d{13}$/, message: "เลขบัตรประชาชนต้องเป็นตัวเลข 13 หลัก", required: false },
+    name: { pattern: /.+/, message: "กรุณากรอกชื่อ-นามสกุล" },
+    age: { pattern: /^\d{1,3}$/, message: "อายุต้องเป็นตัวเลข" },
+    payment: { pattern: /.+/, message: "กรุณาเลือกสิทธิการรักษา" },
+    hospital: { pattern: /.+/, message: "กรุณาเลือกโรงพยาบาล" },
+    date: { pattern: /.+/, message: "กรุณาเลือกวันที่" },
+    timeIn: { pattern: /.+/, message: "กรุณากรอกเวลาเริ่ม" },
+    timeOut: { pattern: /.+/, message: "กรุณากรอกเวลาสิ้นสุด" },
+    doctor: { pattern: /.+/, message: "กรุณาเลือกแพทย์" },
+    scrub: { pattern: /.+/, message: "กรุณาเลือก Scrub" },
+    circulate: { pattern: /.+/, message: "กรุณากรอก Circulate" },
+    monitor: { pattern: /.+/, message: "กรุณากรอก Monitor" },
+    indication: { pattern: /.+/, message: "กรุณากรอก Indication" },
+    procedure: { pattern: /.+/, message: "กรุณากรอก Procedure" },
+    result: { pattern: /.+/, message: "กรุณากรอก Result" },
+    punctureSite: { pattern: /.+/, message: "กรุณากรอก Puncture site" },
+    complication: { pattern: /.+/, message: "กรุณากรอก Complication" },
+    recommendation: { pattern: /.+/, message: "กรุณากรอก Recommendation" }
 };
 
 // Fields AI extracts from the notebook photo — technician reviews & corrects them.
-// `suggestions` (optional) hooks the field up to a <datalist> fed by Config_Master.
-// `no` (running case number from the notebook's "No." column) is first — handwritten
+// `suggestions` (optional) hooks the field up to the custom suggestion dropdown fed
+// by Config_Master. `no` (running case number from the notebook's "No." column) is first — handwritten
 // digits like "6" vs "2" are occasionally misread by OCR, so this needs to be an
 // easy, obvious first fix for the technician reviewing the case.
 const GENERAL_FIELDS = [
@@ -61,14 +81,12 @@ const STAFF_FIELDS = [
     { id: 'doctor', label: 'Doctor', suggestions: DOCTOR_SUGGESTIONS },
     { id: 'scrub', label: 'Scrub', suggestions: SCRUB_SUGGESTIONS },
     // Circulate/Monitor can have multiple people on one case (up to 5 / up to 3),
-    // comma-separated in one cell (same as gemini.js extracts). No `suggestions` —
-    // a datalist can only autocomplete a single name, which isn't useful here, so
-    // these two are plain free-text inputs.
-    { id: 'circulate', label: 'Circulate', placeholder: 'พิมพ์ชื่อ (ใส่ได้หลายคน คั่นด้วยลูกน้ำ)' },
-    // Config_Master does have a dedicated "Monitor" column (see MONITOR_SUGGESTIONS /
-    // loadConfigMaster below), but it's still not wired up as a dropdown here — same
-    // reasoning as circulate above, a datalist only autocompletes one name at a time.
-    { id: 'monitor', label: 'Monitor', placeholder: 'พิมพ์ชื่อ (ใส่ได้หลายคน คั่นด้วยลูกน้ำ)' }
+    // comma-separated in one cell (same as gemini.js extracts). The custom dropdown
+    // (createSuggestionDropdown) only fills the whole field on selection, so it
+    // autocompletes the first name typed; any additional names are still typed by
+    // hand after a comma, same as before.
+    { id: 'circulate', label: 'Circulate', placeholder: 'พิมพ์ชื่อ (ใส่ได้หลายคน คั่นด้วยลูกน้ำ)', suggestions: CIRCULATE_SUGGESTIONS },
+    { id: 'monitor', label: 'Monitor', placeholder: 'พิมพ์ชื่อ (ใส่ได้หลายคน คั่นด้วยลูกน้ำ)', suggestions: MONITOR_SUGGESTIONS }
 ];
 
 const TREATMENT_FIELDS = [
@@ -129,7 +147,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Load Doctor/Scrub/Circulate/Hospital suggestions from Google Sheet Config_Master
-    // before rendering, so the datalists are populated on first paint.
+    // before rendering, so the suggestion dropdowns are populated on first paint.
     await loadConfigMaster();
 
     // URL Params
@@ -190,6 +208,92 @@ async function loadConfigMaster() {
     }
 }
 
+// Injects the CSS for the custom suggestion dropdown once. Native <datalist> popups
+// turned out to be unreliable inside the LINE in-app browser used to render this LIFF
+// page — some versions never show the suggestion list even though the data, the
+// list/id wiring, and the fetch/splice/timing logic feeding it are all correct — so
+// suggestions are rendered as a plain absolutely-positioned div instead, which this
+// app fully controls and isn't at the mercy of the webview's native popup rendering.
+(function injectSuggestionDropdownStyles() {
+    const style = document.createElement('style');
+    style.textContent = `
+        .suggestion-list {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 100%;
+            margin-top: 4px;
+            max-height: 12rem;
+            overflow-y: auto;
+            background-color: #404040;
+            border: 1px solid #525252;
+            border-radius: 0.375rem;
+            z-index: 50;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        .suggestion-item {
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            color: #e5e5e5;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #525252;
+        }
+    `;
+    document.head.appendChild(style);
+})();
+
+// Replaces the native <datalist> suggestion popup (see comment above). `inputEl`'s
+// parent must be the field's wrapper div — the dropdown is appended into it and
+// positioned absolutely relative to it. Filters case-insensitively as the user
+// types/focuses, and fills the whole input on click (see STAFF_FIELDS comment for
+// why Circulate/Monitor only autocomplete the first name this way).
+function createSuggestionDropdown(inputEl, suggestions) {
+    const wrapper = inputEl.parentElement;
+    wrapper.classList.add('relative');
+
+    const list = document.createElement('div');
+    list.className = 'suggestion-list hidden';
+    wrapper.appendChild(list);
+
+    const renderItems = () => {
+        const query = inputEl.value.trim().toLowerCase();
+        const matches = query === ''
+            ? suggestions
+            : suggestions.filter((s) => s.toLowerCase().includes(query));
+
+        if (matches.length === 0) {
+            list.classList.add('hidden');
+            list.innerHTML = '';
+            return;
+        }
+
+        list.innerHTML = matches.map((s) => `<div class="suggestion-item">${escapeHtml(s)}</div>`).join('');
+        list.classList.remove('hidden');
+    };
+
+    inputEl.addEventListener('input', renderItems);
+    inputEl.addEventListener('focus', renderItems);
+
+    // mousedown (not click) fires before the input's blur, so the value is set
+    // and the dropdown is hidden before anything else reacts to focus leaving the field.
+    list.addEventListener('mousedown', (e) => {
+        const item = e.target.closest('.suggestion-item');
+        if (!item) return;
+        e.preventDefault();
+        inputEl.value = item.textContent;
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        list.classList.add('hidden');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (e.target !== inputEl && !list.contains(e.target)) {
+            list.classList.add('hidden');
+        }
+    });
+}
+
 function renderCases() {
     const container = document.getElementById('cases-container');
     const template = document.getElementById('case-template').content;
@@ -207,25 +311,24 @@ function renderCases() {
         headerTitleEl.textContent = `เคสที่ ${caseData.no} — ${caseData.name}`;
         headerCcnEl.textContent = caseData.ccn;
 
-        // ---- General Info (editable, with format validation on CCN/HN/AN) ----
+        // ---- General Info (editable, with required + format validation) ----
         const generalForm = clone.querySelector('.general-form');
         GENERAL_FIELDS.forEach(field => {
             const hasSuggestions = Array.isArray(field.suggestions);
-            const listId = hasSuggestions ? `gen-list-${index}-${field.id}` : '';
             const wrapper = document.createElement('div');
             wrapper.innerHTML = `
                 <label class="block text-xs font-medium text-neutral-400">${field.label}</label>
                 <input type="${field.type}" id="gen-${index}-${field.id}" data-id="${field.id}"
-                    ${hasSuggestions ? `list="${listId}"` : ''}
                     value="${escapeAttr(caseData[field.id] || '')}" placeholder="${field.placeholder || ''}"
                     class="mt-1 block w-full rounded-md border border-neutral-600 bg-neutral-700 text-neutral-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 outline-none transition-colors placeholder-neutral-500" />
-                ${hasSuggestions ? `<datalist id="${listId}">${field.suggestions.map(v => `<option value="${escapeAttr(v)}"></option>`).join('')}</datalist>` : ''}
                 <p id="err-gen-${index}-${field.id}" class="text-red-400 text-xs mt-1 hidden"></p>
             `;
             generalForm.appendChild(wrapper);
 
             const inputEl = wrapper.querySelector('input');
             const errEl = wrapper.querySelector('p');
+
+            if (hasSuggestions) createSuggestionDropdown(inputEl, field.suggestions);
 
             const handleChange = (value) => {
                 editedData[index][field.id] = value;
@@ -241,34 +344,41 @@ function renderCases() {
 
             inputEl.addEventListener('input', (e) => handleChange(e.target.value.trim()));
 
-            // Validate the pre-filled/AI-extracted value immediately, so a bad OCR
-            // read on CCN/HN/AN is flagged even before the technician touches it.
-            validateGeneralInput(field.id, inputEl.value, errEl, inputEl);
+            // Validate the pre-filled/AI-extracted value immediately, so a blank or
+            // bad OCR read is flagged even before the technician touches the field.
+            validateGeneralInput(field.id, inputEl.value.trim(), errEl, inputEl);
         });
 
-        // ---- Staff (dropdown suggestions from Config_Master + free text) ----
+        // ---- Staff (dropdown suggestions from Config_Master, required) ----
         const staffForm = clone.querySelector('.staff-form');
         STAFF_FIELDS.forEach(field => {
             const hasSuggestions = Array.isArray(field.suggestions);
-            const listId = hasSuggestions ? `staff-list-${index}-${field.id}` : '';
             const wrapper = document.createElement('div');
             wrapper.innerHTML = `
                 <label class="block text-xs font-medium text-neutral-400">${field.label}</label>
                 <input type="text" id="staff-${index}-${field.id}" data-id="${field.id}"
-                    ${hasSuggestions ? `list="${listId}"` : ''}
                     value="${escapeAttr(caseData[field.id] || '')}" placeholder="${field.placeholder || 'เลือกหรือพิมพ์ชื่อ'}"
                     class="mt-1 block w-full rounded-md border border-neutral-600 bg-neutral-700 text-neutral-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 outline-none transition-colors placeholder-neutral-500" />
-                ${hasSuggestions ? `<datalist id="${listId}">${field.suggestions.map(name => `<option value="${escapeAttr(name)}"></option>`).join('')}</datalist>` : ''}
+                <p id="err-staff-${index}-${field.id}" class="text-red-400 text-xs mt-1 hidden"></p>
             `;
             staffForm.appendChild(wrapper);
 
             const inputEl = wrapper.querySelector('input');
+            const errEl = wrapper.querySelector('p');
+
+            if (hasSuggestions) createSuggestionDropdown(inputEl, field.suggestions);
+
             inputEl.addEventListener('input', (e) => {
-                editedData[index][field.id] = e.target.value.trim();
+                const value = e.target.value.trim();
+                editedData[index][field.id] = value;
+                validateGeneralInput(field.id, value, errEl, inputEl);
             });
+
+            // Validate the pre-filled/AI-extracted value immediately, same as General Info.
+            validateGeneralInput(field.id, inputEl.value.trim(), errEl, inputEl);
         });
 
-        // ---- Treatment Details (editable) ----
+        // ---- Treatment Details (editable, required) ----
         const treatmentForm = clone.querySelector('.treatment-form');
         TREATMENT_FIELDS.forEach(field => {
             const wrapper = document.createElement('div');
@@ -281,13 +391,21 @@ function renderCases() {
                     : `<input type="text" id="tx-${index}-${field.id}" data-id="${field.id}" value="${escapeAttr(caseData[field.id] || '')}" placeholder="${field.placeholder || ''}"
                         class="mt-1 block w-full rounded-md border border-neutral-600 bg-neutral-700 text-neutral-200 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 outline-none transition-colors placeholder-neutral-500" />`
                 }
+                <p id="err-tx-${index}-${field.id}" class="text-red-400 text-xs mt-1 hidden"></p>
             `;
             treatmentForm.appendChild(wrapper);
 
             const fieldEl = wrapper.querySelector(isTextarea ? 'textarea' : 'input');
+            const errEl = wrapper.querySelector('p');
+
             fieldEl.addEventListener('input', (e) => {
-                editedData[index][field.id] = e.target.value.trim();
+                const value = e.target.value.trim();
+                editedData[index][field.id] = value;
+                validateGeneralInput(field.id, value, errEl, fieldEl);
             });
+
+            // Validate the pre-filled/AI-extracted value immediately, same as General Info.
+            validateGeneralInput(field.id, fieldEl.value.trim(), errEl, fieldEl);
         });
 
         // ---- Equipment (manual entry, unchanged behavior) ----
@@ -388,19 +506,19 @@ function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-// Validates CCN/HN/AN/idCard against the same formats used server-side in gemini.js
-// (CCN: NN-NNNN, HN/AN: 8-digit, idCard: 13-digit mask-token pattern). Fields not
-// listed in GENERAL_VALIDATION (name, age, payment, hospital, date, timeIn, timeOut)
-// have no format restriction and always pass.
+// Validates every General/Staff/Treatment field listed in GENERAL_VALIDATION against
+// its required/format rule (CCN: NN-NNNN, HN/AN: 8-digit, idCard: 13-digit mask-token
+// pattern per gemini.js; the rest are required-only, no fixed format). A fieldId with
+// no entry in GENERAL_VALIDATION always passes (there is currently none — every
+// General/Staff/Treatment field has a rule; Equipment fields never call this function).
 function validateGeneralInput(fieldId, value, errEl, inputEl) {
     const rule = GENERAL_VALIDATION[fieldId];
     if (!rule) return true;
 
-    // CCN/HN/AN are required identifiers — empty is just as invalid as a bad
-    // format, and must be flagged red immediately rather than waiting for the
-    // server round-trip after Submit to catch it. idCard (rule.required === false)
-    // is the exception: not every case has a legible ID card in the photo, so an
-    // empty value passes here and is treated as "not yet checked" rather than invalid.
+    // Empty is invalid for every field except idCard (rule.required === false) — not
+    // every case has a legible ID card in the photo, so an empty value there passes
+    // and is treated as "not yet checked" rather than invalid. Everything else must be
+    // flagged red immediately rather than waiting for the server round-trip after Submit.
     if (value === '') {
         if (rule.required === false) {
             errEl.classList.add('hidden');
@@ -408,7 +526,7 @@ function validateGeneralInput(fieldId, value, errEl, inputEl) {
             inputEl.classList.add('border-neutral-600');
             return true;
         }
-        errEl.textContent = `กรุณากรอก ${fieldId.toUpperCase()}`;
+        errEl.textContent = rule.message;
         errEl.classList.remove('hidden');
         inputEl.classList.add('border-red-500');
         inputEl.classList.remove('border-neutral-600');
@@ -468,8 +586,10 @@ document.getElementById('btn-submit-all').addEventListener('click', async (e) =>
     btn.disabled = true;
     btn.textContent = 'กำลังบันทึก...';
 
-    // Verify all inputs are valid before submitting — covers Equipment AND the
-    // CCN/HN/AN fields in General Info (both use the same .border-red-500 marker).
+    // Verify all inputs are valid before submitting. `.border-red-500` is the shared
+    // marker set by both validateGeneralInput() (General/Staff/Treatment — required,
+    // plus CCN/HN/AN/idCard format) and validateInput() (Equipment — format only, empty
+    // is valid), so one query over every input/textarea in the card covers all of them.
     const allInputs = document.querySelectorAll('.case-card input, .case-card textarea');
     let hasError = false;
     allInputs.forEach(input => {
