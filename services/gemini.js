@@ -124,18 +124,20 @@ class GeminiService {
 
   /**
    * Calls this.model.generateContent with retry-with-backoff for transient
-   * Gemini overload/rate-limit errors (HTTP 503/429), which happen occasionally
-   * under normal Google-side load and otherwise fail the whole pipeline on a
-   * single blip.
+   * Gemini overload/rate-limit errors (HTTP 503/429). Under real Google-side
+   * overload (observed on the free tier), a single call can hang 100+ seconds
+   * before the API even returns the 503, which blows past the Cloud Run
+   * request timeout across just 1-2 attempts. A per-call timeout caps that so
+   * a slow attempt fails fast and retries actually get a chance to run.
    */
-  async generateContentWithRetry(request, maxRetries = 2) {
+  async generateContentWithRetry(request, maxRetries = 2, perCallTimeoutMs = 25000) {
     let lastErr;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            return await this.model.generateContent(request);
+            return await this.model.generateContent(request, { timeout: perCallTimeoutMs });
         } catch (err) {
             lastErr = err;
-            const isTransient = /\b(503|429)\b/.test(err.message || '');
+            const isTransient = /\b(503|429)\b/.test(err.message || '') || /timeout/i.test(err.message || '');
             if (!isTransient || attempt === maxRetries) throw err;
             const delayMs = 1000 * Math.pow(2, attempt);
             console.warn(`Gemini transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms:`, err.message);
