@@ -123,8 +123,31 @@ class GeminiService {
   }
 
   /**
+   * Calls this.model.generateContent with retry-with-backoff for transient
+   * Gemini overload/rate-limit errors (HTTP 503/429), which happen occasionally
+   * under normal Google-side load and otherwise fail the whole pipeline on a
+   * single blip.
+   */
+  async generateContentWithRetry(request, maxRetries = 2) {
+    let lastErr;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await this.model.generateContent(request);
+        } catch (err) {
+            lastErr = err;
+            const isTransient = /\b(503|429)\b/.test(err.message || '');
+            if (!isTransient || attempt === maxRetries) throw err;
+            const delayMs = 1000 * Math.pow(2, attempt);
+            console.warn(`Gemini transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms:`, err.message);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+    }
+    throw lastErr;
+  }
+
+  /**
    * Calls Gemini to extract and structure the masked text.
-   * @param {string} maskedText 
+   * @param {string} maskedText
    * @param {string} abbreviations - Dictionary string of medical abbreviations
    */
   async extractData(maskedText, abbreviations = '') {
@@ -276,17 +299,28 @@ ${maskedText}
 Return ONLY the JSON array. Do not include markdown formatting or extra text.
 `;
 
-    const result = await this.model.generateContent(prompt);
+    const result = await this.generateContentWithRetry({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: 'application/json' },
+    });
+
+    const candidate = result.response.candidates && result.response.candidates[0];
+    if (!candidate || !candidate.content) {
+        const blockReason = result.response.promptFeedback && result.response.promptFeedback.blockReason;
+        console.error('Gemini returned no candidate. finishReason:', candidate && candidate.finishReason, 'blockReason:', blockReason);
+        throw new Error('Gemini returned no output (blocked or empty response)');
+    }
+
     const responseText = result.response.text();
-    
-    // Clean markdown if Gemini mistakenly includes it
+
+    // Clean markdown in case Gemini still wraps it despite responseMimeType
     let cleanJson = responseText.replace(/```json/gi, '').replace(/```/gi, '').trim();
-    
+
     try {
         return JSON.parse(cleanJson);
     } catch (error) {
-        console.error("Failed to parse Gemini output as JSON", responseText);
-        throw new Error("Invalid output format from LLM");
+        console.error('Failed to parse Gemini output as JSON. finishReason:', candidate.finishReason, 'raw:', responseText);
+        throw new Error('Invalid output format from LLM');
     }
   }
 
