@@ -130,7 +130,7 @@ class GeminiService {
    * request timeout across just 1-2 attempts. A per-call timeout caps that so
    * a slow attempt fails fast and retries actually get a chance to run.
    */
-  async generateContentWithRetry(request, maxRetries = 2, perCallTimeoutMs = 25000) {
+  async generateContentWithRetry(request, maxRetries = 2, perCallTimeoutMs = 45000) {
     let lastErr;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
