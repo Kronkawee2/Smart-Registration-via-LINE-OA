@@ -137,7 +137,7 @@ class GeminiService {
             return await this.model.generateContent(request, { timeout: perCallTimeoutMs });
         } catch (err) {
             lastErr = err;
-            const isTransient = /\b(503|429)\b/.test(err.message || '') || /timeout/i.test(err.message || '');
+            const isTransient = /\b(503|429)\b/.test(err.message || '') || /timeout/i.test(err.message || '') || /abort/i.test(err.message || '');
             if (!isTransient || attempt === maxRetries) throw err;
             const delayMs = 1000 * Math.pow(2, attempt);
             console.warn(`Gemini transient error (attempt ${attempt + 1}/${maxRetries + 1}), retrying in ${delayMs}ms:`, err.message);
