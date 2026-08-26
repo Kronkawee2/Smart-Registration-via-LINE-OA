@@ -59,7 +59,7 @@ function normalizeDateString(dateStr) {
 class GeminiService {
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-flash-latest' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-flash-lite-latest' });
   }
 
   /**
@@ -130,7 +130,7 @@ class GeminiService {
    * request timeout across just 1-2 attempts. A per-call timeout caps that so
    * a slow attempt fails fast and retries actually get a chance to run.
    */
-  async generateContentWithRetry(request, maxRetries = 2, perCallTimeoutMs = 45000) {
+  async generateContentWithRetry(request, maxRetries = 2, perCallTimeoutMs = 90000) {
     let lastErr;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
         try {
