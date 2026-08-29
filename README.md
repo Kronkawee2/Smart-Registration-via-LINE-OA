@@ -51,33 +51,33 @@ Smart-Registration-via-LINE-OA/
 ตั้งค่าผ่าน Cloud Run Console (Variables & Secrets)
 
 ### Google Cloud
-GCP_PROJECT_ID=
-DOC_AI_PROCESSOR_ID=
-GCP_STORAGE_BUCKET_NAME=
-GOOGLE_SERVICE_ACCOUNT_EMAIL=
+* GCP_PROJECT_ID
+* DOC_AI_PROCESSOR_ID
+* GCP_STORAGE_BUCKET_NAME
+* GOOGLE_SERVICE_ACCOUNT_EMAIL
 
 ### Google Sheets
-GOOGLE_SHEET_ID=
+* GOOGLE_SHEET_ID
 
 ### Gemini API
-GEMINI_API_KEY=
+* GEMINI_API_KEY
 
 ### LINE
-LINE_CHANNEL_ACCESS_TOKEN=
-LINE_CHANNEL_SECRET=
-LINE_CHANNEL_ID=
-LINE_LOGIN_CHANNEL_ID=
-LIFF_ID=
+* LINE_CHANNEL_ACCESS_TOKEN
+* LINE_CHANNEL_SECRET
+* LINE_CHANNEL_ID
+* LINE_LOGIN_CHANNEL_ID
+* LIFF_ID
 
 ### Cloud Tasks
-CLOUD_TASKS_LOCATION=
-CLOUD_TASKS_QUEUE=
-INTERNAL_TASK_SECRET=          # รหัสลับป้องกันคนนอกยิง request เข้า /internal/process-image ตรง ๆ
+* CLOUD_TASKS_LOCATION
+* CLOUD_TASKS_QUEUE
+* INTERNAL_TASK_SECRET          # รหัสลับป้องกันคนนอกยิง request เข้า /internal/process-image ตรง ๆ
 
 ### App Config
-PORT=8080                      
-PUBLIC_BASE_URL=                # URL ของ Cloud Run service (ได้หลัง deploy ครั้งแรก)
-WHITELISTED_LINE_USER_IDS=      # LINE User ID เจ้าหน้าที่ที่อนุญาต
+* PORT                     
+* PUBLIC_BASE_URL                # URL ของ Cloud Run service (ได้หลัง deploy ครั้งแรก)
+* WHITELISTED_LINE_USER_IDS      # LINE User ID เจ้าหน้าที่ที่อนุญาต
 
 **หมายเหตุ:** ไม่ต้องมี `GOOGLE_APPLICATION_CREDENTIALS` บน Cloud Run ใช้ Service Account ที่ผูกกับตัว service โดยตรงแทน (auth อัตโนมัติ ปลอดภัยกว่า ไม่มี key file ให้หลุด)
 
