@@ -1,6 +1,6 @@
 # Smart Patient Registration via LINE OA
 
-ระบบบันทึกข้อมูลเคสของแผนก Cath Lab (สวนหัวใจ) ผ่าน LINE Official Account — เจ้าหน้าที่ถ่ายภาพสมุดบันทึกเขียนด้วยลายมือส่งเข้า LINE ระบบใช้ OCR + AI แปลงลายมือเป็นข้อความ(Convert to text) ให้เจ้าหน้าที่ตรวจสอบ/แก้ไขผ่านหน้าเว็บ (LIFF) ก่อนบันทึกลง Google Sheet โดยอัตโนมัติ พร้อม Dashboard สรุปยอดรายเดือนสามารถกดดูได้ในแชท LINE
+ระบบบันทึกข้อมูลเคสของแผนก Cath Lab (สวนหัวใจ) ผ่าน LINE Official Account เจ้าหน้าที่ถ่ายภาพสมุดบันทึกเขียนด้วยลายมือส่งเข้า LINE ระบบใช้ OCR + AI แปลงลายมือเป็นข้อความ(Convert to text) ให้เจ้าหน้าที่ตรวจสอบ/แก้ไขผ่านหน้าเว็บ (LIFF) ก่อนบันทึกลง Google Sheet โดยอัตโนมัติ พร้อม Dashboard สรุปยอดรายเดือนสามารถกดดูได้ในแชท LINE
 
 # ภาพรวมระบบ (Pipeline)
 
@@ -29,17 +29,27 @@ OCR ใช้ Google Document AI (Document OCR processor) — สมุดลา
 
 # Project structure
 
-- **`index.js`** — Express server, webhook, API endpoints, orchestration pipeline
-- **`public/`**
-  - `liff.html` — หน้า LIFF สำหรับตรวจสอบ/แก้ไขข้อมูลเคส
-  - `js/app.js` — Logic ฝั่ง frontend ของ LIFF form
-- **`services/`**
-  - `vision.js` — เรียก Document AI, parse โครงสร้างเอกสาร, แยก/mask ชื่อคนไข้
-  - `gemini.js` — เรียก Gemini API, mask/remap PHI, validate ข้อมูล
-  - `googleSheets.js` — อ่าน/เขียน Google Sheets ทั้งหมด, คำนวณสรุปยอด, จัดการแท็บรายเดือน
-  - `storage.js` — อัปโหลดภาพเข้า Cloud Storage
-  - `dashboard.js` — ประกอบ Flex Message สรุปยอด Dashboard
-- **`utils/equipmentParser.js`** — Parse ข้อมูลอุปกรณ์ (รูปแบบ "1" หรือ "1+1" สำหรับ New/Re)
+```
+mt5-tracker/
+├── analysis/
+│   ├── strategies/
+│   │   ├── kalman_mean_reversion.py        # OU: KalmanOU, VolatilityRegimeHMM, run_mean_reversion()
+│   │   ├── cir_mean_reversion.py           # CIR: KalmanCIR, run_cir_mean_reversion()
+│   │   ├── garch_ou_mean_reversion.py      # GARCH-OU: KalmanGARCH, run_garch_mean_reversion()
+│   │   ├── garch_ou_var_mean_reversion.py  # GARCH-OU + VaR-threshold variant, ไม่ผ่าน
+│   │   ├── jump_ou_mean_reversion.py       # Jump-Diffusion OU: KalmanJumpOU
+│   │   └── trend_following.py              # Donchian breakout, ตัดทิ้งแล้ว
+│   └── backtester/
+│       ├── deflated_sharpe.py              # DSR, Sharpe, trade_metrics
+│       └── risk_management.py              # Inverse-vol sizing + fixed-fractional risk cap
+├── dashboard/
+│   ├── 1_Chart.py                          # Candlestick chart + model mean/bands overlay
+│   └── pages/2_Results.py                  # ตารางสรุปผลทุก experiment
+├── scripts/
+│   ├── sync/                               # MT5 -> MySQL sync
+│   └── research/                           # walk-forward evaluator ต่อโมเดล ดูตารางด้านล่าง
+└── storage/                                 # schema SQL, raw layer เท่านั้นสำหรับระบบนี้
+```
 
 # Environment Variables
 
@@ -72,7 +82,7 @@ INTERNAL_TASK_SECRET=          # รหัสลับป้องกันค�
 ## App Config
 PORT=8080                      
 PUBLIC_BASE_URL=                # URL ของ Cloud Run service (ได้หลัง deploy ครั้งแรก)
-WHITELISTED_LINE_USER_IDS=      # LINE User ID เจ้าหน้าที่ที่อนุญาต คั่นด้วยลูกน้ำ
+WHITELISTED_LINE_USER_IDS=      # LINE User ID เจ้าหน้าที่ที่อนุญาต
 
 **หมายเหตุ:** ไม่ต้องมี `GOOGLE_APPLICATION_CREDENTIALS` บน Cloud Run ใช้ Service Account ที่ผูกกับตัว service โดยตรงแทน (auth อัตโนมัติ ปลอดภัยกว่า ไม่มี key file ให้หลุด)
 
