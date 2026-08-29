@@ -30,25 +30,20 @@ OCR ใช้ Google Document AI (Document OCR processor) — สมุดลา
 # Project structure
 
 ```
-mt5-tracker/
-├── analysis/
-│   ├── strategies/
-│   │   ├── kalman_mean_reversion.py        # OU: KalmanOU, VolatilityRegimeHMM, run_mean_reversion()
-│   │   ├── cir_mean_reversion.py           # CIR: KalmanCIR, run_cir_mean_reversion()
-│   │   ├── garch_ou_mean_reversion.py      # GARCH-OU: KalmanGARCH, run_garch_mean_reversion()
-│   │   ├── garch_ou_var_mean_reversion.py  # GARCH-OU + VaR-threshold variant, ไม่ผ่าน
-│   │   ├── jump_ou_mean_reversion.py       # Jump-Diffusion OU: KalmanJumpOU
-│   │   └── trend_following.py              # Donchian breakout, ตัดทิ้งแล้ว
-│   └── backtester/
-│       ├── deflated_sharpe.py              # DSR, Sharpe, trade_metrics
-│       └── risk_management.py              # Inverse-vol sizing + fixed-fractional risk cap
-├── dashboard/
-│   ├── 1_Chart.py                          # Candlestick chart + model mean/bands overlay
-│   └── pages/2_Results.py                  # ตารางสรุปผลทุก experiment
-├── scripts/
-│   ├── sync/                               # MT5 -> MySQL sync
-│   └── research/                           # walk-forward evaluator ต่อโมเดล ดูตารางด้านล่าง
-└── storage/                                 # schema SQL, raw layer เท่านั้นสำหรับระบบนี้
+Smart-Registration-via-LINE-OA/
+├── index.js                      # Express server, webhook, API endpoints, orchestration pipeline
+├── public/
+│   ├── js/
+│   │   └── app.js                # Logic ฝั่ง frontend ของ LIFF form (UI interactions, validation, state)
+│   └── liff.html                 # หน้า LIFF สำหรับตรวจสอบ/แก้ไขข้อมูลเคส
+├── services/
+│   ├── dashboard.js              # ประกอบ Flex Message สรุปยอด Dashboard
+│   ├── gemini.js                 # เรียก Gemini API, mask/remap PHI, validate ข้อมูล
+│   ├── googleSheets.js           # อ่าน/เขียน Google Sheets ทั้งหมด, คำนวณสรุปยอด, จัดการแท็บรายเดือน
+│   ├── storage.js                # อัปโหลดภาพเข้า Cloud Storage
+│   └── vision.js                 # เรียก Document AI, parse โครงสร้างเอกสาร, แยก/mask ชื่อคนไข้
+└── utils/
+    └── equipmentParser.js        # Parse ข้อมูลอุปกรณ์ (รูปแบบ "1" หรือ "1+1" สำหรับ New/Re)
 ```
 
 # Environment Variables
