@@ -40,6 +40,31 @@ function getCurrentMonthTab(date = new Date()) {
   return `${month}${yearStr}`;
 }
 
+// Parses a month-tab title like "Oct26" into a sortable month number
+// (year * 12 + monthIndex). Returns null for non-month tabs (Raw_Logs etc.).
+function parseMonthTab(title) {
+  const match = /^([A-Z][a-z]{2})(\d{2})$/.exec(title || '');
+  if (!match) return null;
+  const monthIdx = MONTH_NAMES.indexOf(match[1]);
+  if (monthIdx === -1) return null;
+  return (2000 + parseInt(match[2], 10)) * 12 + monthIdx;
+}
+
+// Picks the month tab to use as a template for a new tab: the latest month tab
+// before the target month, or (if the new tab is older than every existing
+// one, e.g. a backfill) the latest month tab overall.
+function findTemplateMonthSheet(sheetsProps, targetTabName) {
+  const target = parseMonthTab(targetTabName);
+  const monthSheets = sheetsProps
+    .map((p) => ({ props: p, order: parseMonthTab(p.title) }))
+    .filter((s) => s.order !== null && s.props.title !== targetTabName)
+    .sort((a, b) => b.order - a.order);
+
+  if (monthSheets.length === 0) return null;
+  const earlier = monthSheets.find((s) => target !== null && s.order < target);
+  return (earlier || monthSheets[0]).props;
+}
+
 // Single source of truth for which month tab a record belongs to. Both
 // checkDuplicateCCN and appendPatientRecord call this with the same
 // recordData, so they can never disagree on which tab to use.
@@ -163,27 +188,75 @@ class GoogleSheetsService {
       spreadsheetId: this.sheetId,
     });
 
-    const existingSheets = (spreadsheet.data.sheets || []).map(
-      (s) => s.properties?.title
-    );
+    const sheetsProps = (spreadsheet.data.sheets || []).map((s) => s.properties || {});
+    const existingSheets = sheetsProps.map((p) => p.title);
 
     if (existingSheets.includes(tabName)) {
       return;
     }
 
+    // Prefer duplicating the previous month tab so everything staff set up by
+    // hand (conditional-format formulas, colors, column widths, frozen rows,
+    // dropdowns) carries over. Only the data values are cleared afterwards.
+    const templateSheet = findTemplateMonthSheet(sheetsProps, tabName);
+
     let newSheetId = null;
+    let duplicated = false;
     try {
+      const request = templateSheet
+        ? {
+            duplicateSheet: {
+              sourceSheetId: templateSheet.sheetId,
+              newSheetName: tabName,
+              insertSheetIndex: (templateSheet.index ?? 0) + 1,
+            },
+          }
+        : { addSheet: { properties: { title: tabName } } };
+
       const createRes = await sheets.spreadsheets.batchUpdate({
         spreadsheetId: this.sheetId,
-        requestBody: {
-          requests: [{ addSheet: { properties: { title: tabName } } }],
-        },
+        requestBody: { requests: [request] },
       });
-      newSheetId = createRes.data.replies?.[0]?.addSheet?.properties?.sheetId ?? null;
+      const reply = createRes.data.replies?.[0];
+      newSheetId = (reply?.duplicateSheet || reply?.addSheet)?.properties?.sheetId ?? null;
+      duplicated = Boolean(templateSheet) && newSheetId !== null;
     } catch (err) {
       const alreadyExists = (err.message || '').includes('already exists');
       if (!alreadyExists) throw err;
       console.log(`Sheet "${tabName}" already exists (race condition handled).`);
+    }
+
+    if (duplicated) {
+      // Wipe last month's case data (row 2 down, app columns A:AJ only) while
+      // keeping every cell's formatting. Columns past AJ are left untouched in
+      // case staff keep helper formulas there.
+      try {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.sheetId,
+          requestBody: {
+            requests: [{
+              updateCells: {
+                range: {
+                  sheetId: newSheetId,
+                  startRowIndex: 1,
+                  startColumnIndex: 0,
+                  endColumnIndex: PATIENT_RECORD_HEADERS.length,
+                },
+                fields: 'userEnteredValue',
+              },
+            }],
+          },
+        });
+      } catch (clearErr) {
+        // A copy still holding last month's cases would be worse than no tab:
+        // remove it so the next call retries from scratch.
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: this.sheetId,
+          requestBody: { requests: [{ deleteSheet: { sheetId: newSheetId } }] },
+        }).catch((delErr) => console.error(`Failed to roll back "${tabName}":`, delErr.message));
+        throw clearErr;
+      }
+      console.log(`Created "${tabName}" from template "${templateSheet.title}" (data cleared).`);
     }
 
     await sheets.spreadsheets.values.update({
@@ -193,7 +266,9 @@ class GoogleSheetsService {
       requestBody: { values: [PATIENT_RECORD_HEADERS] },
     });
 
-    if (newSheetId !== null) {
+    // The default color scheme is only needed when there was no earlier month
+    // to copy from — a duplicated tab already carries its template's formatting.
+    if (newSheetId !== null && !duplicated) {
       // Cosmetic only — never let a coloring failure block case-data writes to
       // this brand-new tab.
       try {
