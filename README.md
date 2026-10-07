@@ -58,6 +58,7 @@ Smart-Registration-via-LINE-OA/
 
 ### Google Sheets
 * GOOGLE_SHEET_ID
+* TEMPLATE_MONTH_TAB            # (ไม่บังคับ) แท็บที่ใช้เป็นเทมเพลตตอนขึ้นเดือนใหม่ ค่าเริ่มต้น Aug26
 
 ### Gemini API
 * GEMINI_API_KEY

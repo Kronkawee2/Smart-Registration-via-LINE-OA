@@ -40,6 +40,10 @@ function getCurrentMonthTab(date = new Date()) {
   return `${month}${yearStr}`;
 }
 
+// The month tab every new month is copied from (header names, formulas,
+// colors). Override with the TEMPLATE_MONTH_TAB env var to switch templates.
+const TEMPLATE_MONTH_TAB = process.env.TEMPLATE_MONTH_TAB || 'Aug26';
+
 // Parses a month-tab title like "Oct26" into a sortable month number
 // (year * 12 + monthIndex). Returns null for non-month tabs (Raw_Logs etc.).
 function parseMonthTab(title) {
@@ -195,10 +199,14 @@ class GoogleSheetsService {
       return;
     }
 
-    // Prefer duplicating the previous month tab so everything staff set up by
-    // hand (conditional-format formulas, colors, column widths, frozen rows,
-    // dropdowns) carries over. Only the data values are cleared afterwards.
-    const templateSheet = findTemplateMonthSheet(sheetsProps, tabName);
+    // Duplicate the master template tab (TEMPLATE_MONTH_TAB, default "Aug26")
+    // so everything staff set up by hand — header names, conditional-format
+    // formulas, colors, column widths, frozen rows, dropdowns — carries over.
+    // Only the data values are cleared afterwards. If the master tab is gone,
+    // fall back to the latest earlier month tab.
+    const templateSheet =
+      sheetsProps.find((p) => p.title === TEMPLATE_MONTH_TAB) ||
+      findTemplateMonthSheet(sheetsProps, tabName);
 
     let newSheetId = null;
     let duplicated = false;
@@ -259,16 +267,17 @@ class GoogleSheetsService {
       console.log(`Created "${tabName}" from template "${templateSheet.title}" (data cleared).`);
     }
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: this.sheetId,
-      range: `${tabName}!A1:AJ1`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: { values: [PATIENT_RECORD_HEADERS] },
-    });
-
-    // The default color scheme is only needed when there was no earlier month
-    // to copy from — a duplicated tab already carries its template's formatting.
+    // Headers and the default color scheme are only needed for a blank tab — a
+    // duplicated tab already carries its template's header names and
+    // formatting, and overwriting them would undo the staff's customizations.
     if (newSheetId !== null && !duplicated) {
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: this.sheetId,
+        range: `${tabName}!A1:AJ1`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: { values: [PATIENT_RECORD_HEADERS] },
+      });
+
       // Cosmetic only — never let a coloring failure block case-data writes to
       // this brand-new tab.
       try {
